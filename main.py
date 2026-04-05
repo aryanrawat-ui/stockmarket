@@ -57,7 +57,7 @@ def make_decision(trend, predicted_price, current_price):
 def self_ping():
     while True:
         try:
-            requests.get("https://stockmarketprediction.com/health")
+            requests.get("https://stockmarketprediction-r270.onrender.com/health")
             print("Self ping sent")
         except Exception as e:
             print("Ping failed:", e)
