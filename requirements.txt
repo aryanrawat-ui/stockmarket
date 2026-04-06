@@ -4,3 +4,5 @@ yfinance
 scikit-learn
 numpy
 pandas
+streamlit 
+requests
