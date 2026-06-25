@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import requests
 import yfinance as yf
@@ -34,9 +33,9 @@ st.markdown("""
     padding: 20px;
     border-radius: 12px;
     text-align: center;
-    font-size: 26px;
-    font-weight: 700;
-    margin-top: 15px;
+    font-size: 28px;
+    font-weight: bold;
+    margin-top: 20px;
 }
 
 .signal-sell {
@@ -46,9 +45,9 @@ st.markdown("""
     padding: 20px;
     border-radius: 12px;
     text-align: center;
-    font-size: 26px;
-    font-weight: 700;
-    margin-top: 15px;
+    font-size: 28px;
+    font-weight: bold;
+    margin-top: 20px;
 }
 
 .signal-hold {
@@ -58,14 +57,9 @@ st.markdown("""
     padding: 20px;
     border-radius: 12px;
     text-align: center;
-    font-size: 26px;
-    font-weight: 700;
-    margin-top: 15px;
-}
-
-.block-container {
-    padding-top: 2rem;
-    max-width: 1100px;
+    font-size: 28px;
+    font-weight: bold;
+    margin-top: 20px;
 }
 
 </style>
@@ -84,7 +78,7 @@ st.markdown(
 
 st.divider()
 
-# ---------- STOCK INPUT ----------
+# ---------- STOCK SELECTION ----------
 popular_stocks = [
     "AAPL",
     "TSLA",
@@ -121,7 +115,7 @@ predict_clicked = st.button(
     type="primary"
 )
 
-# ---------- MAIN ----------
+# ---------- PREDICTION ----------
 if predict_clicked:
 
     try:
@@ -133,47 +127,48 @@ if predict_clicked:
             st.warning("No chart data found.")
 
         else:
-
             st.line_chart(
                 hist["Close"],
                 use_container_width=True
             )
 
-            last_close = float(hist["Close"].iloc[-1])
-            prev_close = float(hist["Close"].iloc[-2])
+            if len(hist) >= 2:
 
-            change = last_close - prev_close
-            change_pct = (change / prev_close) * 100
+                last_close = float(hist["Close"].iloc[-1])
+                prev_close = float(hist["Close"].iloc[-2])
 
-            m1, m2, m3 = st.columns(3)
+                change = last_close - prev_close
+                change_pct = (change / prev_close) * 100
 
-            m1.metric(
-                "Last Close",
-                f"₹{last_close:.2f}"
-            )
+                m1, m2, m3 = st.columns(3)
 
-            m2.metric(
-                "Daily Change",
-                f"₹{change:.2f}",
-                f"{change_pct:.2f}%"
-            )
+                m1.metric(
+                    "Last Close",
+                    f"₹{last_close:.2f}"
+                )
 
-            m3.metric(
-                "30-Day High",
-                f"₹{hist['Close'].max():.2f}"
-            )
+                m2.metric(
+                    "Daily Change",
+                    f"₹{change:.2f}",
+                    f"{change_pct:.2f}%"
+                )
+
+                m3.metric(
+                    "30-Day High",
+                    f"₹{hist['Close'].max():.2f}"
+                )
 
         st.divider()
 
         with st.spinner("Analyzing market..."):
 
-            res = requests.get(
+            response = requests.get(
                 API_URL,
                 params={"ticker": ticker},
                 timeout=60
             )
 
-            data = res.json()
+            data = response.json()
 
             if "error" in data:
                 st.error(data["error"])
@@ -195,11 +190,7 @@ if predict_clicked:
                     f"{data['predicted_change_pct']}%"
                 )
 
-                trend = (
-                    "UP"
-                    if data["trend"] == 1
-                    else "DOWN"
-                )
+                trend = "UP" if data["trend"] == 1 else "DOWN"
 
                 p3.metric(
                     "Trend",
@@ -212,10 +203,7 @@ if predict_clicked:
                         data["trend_probability_up"]
                     )
 
-                    probability = min(
-                        max(probability, 0),
-                        1
-                    )
+                    probability = max(0, min(1, probability))
 
                     st.progress(probability)
 
@@ -239,7 +227,7 @@ if predict_clicked:
 
                 else:
                     st.markdown(
-                        "<div class='signal-hold'>HOLD</div>",
+                        "<div class='signal-hold'>HOLD SIGNAL</div>",
                         unsafe_allow_html=True
                     )
 
@@ -247,49 +235,41 @@ if predict_clicked:
 
                 st.subheader("Model Performance")
 
-                acc = data.get("model_accuracy")
+                accuracy = data.get("model_accuracy")
 
-                if acc:
+                if accuracy:
 
                     c1, c2, c3 = st.columns(3)
 
                     c1.metric(
                         "Trend Accuracy",
-                        f"{acc['trend_accuracy_pct']}%"
+                        f"{accuracy['trend_accuracy_pct']}%"
                     )
 
                     c2.metric(
                         "Price MAE",
-                        f"₹{acc['price_mae']}"
+                        f"₹{accuracy['price_mae']}"
                     )
 
                     c3.metric(
                         "R² Score",
-                        acc["price_r2_score"]
+                        accuracy["price_r2_score"]
                     )
 
-                    r2 = float(
-                        acc["price_r2_score"]
-                    )
+                    r2 = float(accuracy["price_r2_score"])
 
                     if r2 >= 0.9:
-                        st.success(
-                            "Excellent model fit"
-                        )
+                        st.success("Excellent model fit")
 
                     elif r2 >= 0.7:
-                        st.info(
-                            "Good model fit"
-                        )
+                        st.info("Good model fit")
 
                     else:
-                        st.warning(
-                            "Weak model fit"
-                        )
+                        st.warning("Weak model fit")
 
                 else:
                     st.warning(
-                        "Model accuracy unavailable."
+                        "Model accuracy data unavailable."
                     )
 
     except requests.exceptions.Timeout:
@@ -303,9 +283,8 @@ st.divider()
 st.markdown(
     """
     <p style='text-align:center; color:gray;'>
-        © 2026 Aryan Rawat | AI Stock Predictor
+    © 2026 Aryan Rawat | AI Stock Predictor
     </p>
     """,
     unsafe_allow_html=True
 )
-```
