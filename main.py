@@ -222,7 +222,7 @@ def health():
 @app.get("/predict")
 def predict(query: str):
     try:
-        if "." in query:
+        if "." in query or query.isupper():
             ticker = query.upper()
         else:
             ticker = get_ticker(query)
