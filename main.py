@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import requests
 import yfinance as yf
+from yahooquery import search
 from fastapi import FastAPI
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import accuracy_score, mean_absolute_error, r2_score
@@ -46,10 +47,29 @@ FEATURE_COLS = [
     "Trend_Strength",
 ]
 
+def get_ticker(query: str):
+    try:
+        result = search(query)
+
+        quotes = result.get("quotes", [])
+
+        if not quotes:
+            return None
+
+        for quote in quotes:
+            symbol = quote.get("symbol", "")
+
+            if symbol.endswith(".NS"):
+                return symbol
+
+        return quotes[0].get("symbol")
+
+    except:
+        return None
 
 def get_stock_data(ticker: str) -> pd.DataFrame:
     stock = yf.Ticker(ticker)
-    df = stock.history(period="2y", interval="1d", auto_adjust=False)
+    df = stock.history(period="5y", interval="1d", auto_adjust=False)
 
     if df.empty:
         return df
@@ -200,8 +220,16 @@ def health():
 
 
 @app.get("/predict")
-def predict(ticker: str):
+def predict(query: str):
     try:
+        if "." in query:
+            ticker = query.upper()
+        else:
+            ticker = get_ticker(query)
+
+        if ticker is None:
+            return {"error": "Company not found"}
+
         raw_df = get_stock_data(ticker)
 
         if raw_df.empty:
