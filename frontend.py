@@ -7,83 +7,82 @@ API_URL = "https://stockmarketprediction-r270.onrender.com/predict"
 
 st.set_page_config(
     page_title="AI Stock Predictor",
+    page_icon="📈",
     layout="wide"
 )
 
-# ---------- CSS ----------
 st.markdown("""
 <style>
 
-.main-title {
-    text-align: center;
-    font-size: 48px;
-    font-weight: 700;
-    margin-bottom: 0;
+.main-title{
+    text-align:center;
+    font-size:48px;
+    font-weight:700;
+    margin-bottom:0;
 }
 
-.sub-title {
-    text-align: center;
-    color: gray;
-    margin-bottom: 35px;
+.subtitle{
+    text-align:center;
+    color:#9ca3af;
+    margin-bottom:30px;
 }
 
-div[data-testid="metric-container"] {
-    background-color: #111827;
-    border: 1px solid #2d3748;
-    padding: 18px;
-    border-radius: 14px;
+div[data-testid="metric-container"]{
+    background-color:#111827;
+    border:1px solid #374151;
+    border-radius:15px;
+    padding:15px;
 }
 
-.signal-buy {
-    background: linear-gradient(90deg,#00b09b,#96c93d);
-    color: white;
-    padding: 25px;
-    border-radius: 15px;
-    text-align: center;
-    font-size: 32px;
-    font-weight: bold;
-    margin-top: 20px;
+.signal-buy{
+    background:linear-gradient(90deg,#059669,#10b981);
+    color:white;
+    padding:22px;
+    border-radius:15px;
+    text-align:center;
+    font-size:32px;
+    font-weight:bold;
 }
 
-.signal-sell {
-    background: linear-gradient(90deg,#cb2d3e,#ef473a);
-    color: white;
-    padding: 25px;
-    border-radius: 15px;
-    text-align: center;
-    font-size: 32px;
-    font-weight: bold;
-    margin-top: 20px;
+.signal-sell{
+    background:linear-gradient(90deg,#b91c1c,#ef4444);
+    color:white;
+    padding:22px;
+    border-radius:15px;
+    text-align:center;
+    font-size:32px;
+    font-weight:bold;
 }
 
-.signal-hold {
-    background: linear-gradient(90deg,#c79081,#dfa579);
-    color: white;
-    padding: 25px;
-    border-radius: 15px;
-    text-align: center;
-    font-size: 32px;
-    font-weight: bold;
-    margin-top: 20px;
+.signal-hold{
+    background:linear-gradient(90deg,#ca8a04,#facc15);
+    color:white;
+    padding:22px;
+    border-radius:15px;
+    text-align:center;
+    font-size:32px;
+    font-weight:bold;
+}
+
+.block-container{
+    padding-top:2rem;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- HEADER ----------
 st.markdown(
     "<h1 class='main-title'>AI Stock Predictor</h1>",
     unsafe_allow_html=True
 )
 
 st.markdown(
-    "<p class='sub-title'>Machine Learning Based Market Forecasting</p>",
+    "<p class='subtitle'>Machine Learning Market Forecasting</p>",
     unsafe_allow_html=True
 )
 
 st.divider()
 
-# ---------- STOCK SELECTION ----------
 popular_stocks = [
     "AAPL",
     "TSLA",
@@ -118,7 +117,6 @@ with center:
         type="primary"
     )
 
-# ---------- PREDICT ----------
 if predict_clicked:
 
     try:
@@ -128,7 +126,7 @@ if predict_clicked:
         try:
             info = stock.info
 
-            company_name = info.get(
+            company = info.get(
                 "longName",
                 ticker
             )
@@ -138,7 +136,7 @@ if predict_clicked:
                 ""
             )
 
-            st.subheader(company_name)
+            st.subheader(company)
 
             if sector:
                 st.caption(sector)
@@ -152,7 +150,7 @@ if predict_clicked:
 
         if hist.empty:
 
-            st.warning("No market data found.")
+            st.warning("No market data available.")
 
         else:
 
@@ -175,7 +173,9 @@ if predict_clicked:
                     r=20,
                     t=20,
                     b=20
-                )
+                ),
+                xaxis_title="Date",
+                yaxis_title="Price"
             )
 
             st.plotly_chart(
@@ -183,39 +183,37 @@ if predict_clicked:
                 use_container_width=True
             )
 
-            if len(hist) >= 2:
+            last_close = float(
+                hist["Close"].iloc[-1]
+            )
 
-                last_close = float(
-                    hist["Close"].iloc[-1]
-                )
+            prev_close = float(
+                hist["Close"].iloc[-2]
+            )
 
-                prev_close = float(
-                    hist["Close"].iloc[-2]
-                )
+            change = last_close - prev_close
 
-                change = last_close - prev_close
+            change_pct = (
+                change / prev_close
+            ) * 100
 
-                change_pct = (
-                    change / prev_close
-                ) * 100
+            m1, m2, m3 = st.columns(3)
 
-                m1, m2, m3 = st.columns(3)
+            m1.metric(
+                "Last Close",
+                f"₹{last_close:.2f}"
+            )
 
-                m1.metric(
-                    "Last Close",
-                    f"₹{last_close:.2f}"
-                )
+            m2.metric(
+                "Daily Change",
+                f"₹{change:.2f}",
+                f"{change_pct:.2f}%"
+            )
 
-                m2.metric(
-                    "Daily Change",
-                    f"₹{change:.2f}",
-                    f"{change_pct:.2f}%"
-                )
-
-                m3.metric(
-                    "30-Day High",
-                    f"₹{hist['Close'].max():.2f}"
-                )
+            m3.metric(
+                "30-Day High",
+                f"₹{hist['Close'].max():.2f}"
+            )
 
         st.divider()
 
@@ -283,15 +281,15 @@ if predict_clicked:
                             gauge={
                                 "axis": {
                                     "range":
-                                    [0, 100]
+                                    [0,100]
                                 }
                             }
                         )
                     )
 
                     gauge.update_layout(
-                        height=300,
-                        template="plotly_dark"
+                        template="plotly_dark",
+                        height=300
                     )
 
                     st.plotly_chart(
@@ -351,33 +349,7 @@ if predict_clicked:
                         acc["price_r2_score"]
                     )
 
-                    r2 = float(
-                        acc["price_r2_score"]
-                    )
-
-                    if r2 >= 0.90:
-
-                        st.success(
-                            "Excellent model fit"
-                        )
-
-                    elif r2 >= 0.70:
-
-                        st.info(
-                            "Good model fit"
-                        )
-
-                    else:
-
-                        st.warning(
-                            "Weak model fit"
-                        )
-
-                else:
-
-                    st.warning(
-                        "Model accuracy unavailable."
-                    )
+        st.divider()
 
     except requests.exceptions.Timeout:
 
@@ -391,14 +363,11 @@ if predict_clicked:
             f"Error: {e}"
         )
 
-st.divider()
-
 st.markdown(
     """
-    <p style='text-align:center;color:gray;'>
+    <p style='text-align:center;color:gray;margin-top:30px;'>
     © 2026 Aryan Rawat | AI Stock Predictor
     </p>
     """,
     unsafe_allow_html=True
 )
-```
