@@ -1,20 +1,40 @@
 import os
 import threading
 import time
+
 import numpy as np
 import pandas as pd
 import requests
 import yfinance as yf
-from yahooquery import search
+
 from fastapi import FastAPI
-from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.metrics import accuracy_score, mean_absolute_error, r2_score
-from sklearn.preprocessing import StandardScaler
 
-app = FastAPI(title="AI Stock Predictor API")
+from sklearn.linear_model import (
+    LinearRegression,
+    LogisticRegression
+)
 
-TREND_THRESHOLD_PCT = 0.3 
+from sklearn.metrics import (
+    accuracy_score,
+    mean_absolute_error,
+    r2_score
+)
+
+from sklearn.preprocessing import (
+    StandardScaler
+)
+
+FINNHUB_API_KEY = os.getenv(
+    "FINNHUB_API_KEY"
+)
+
+app = FastAPI(
+    title="AI Stock Predictor API"
+)
+
+TREND_THRESHOLD_PCT = 0.3
 MIN_ROWS = 120
+
 FEATURE_COLS = [
     "Close",
     "Volume",
@@ -47,38 +67,142 @@ FEATURE_COLS = [
     "Trend_Strength",
 ]
 
-def get_ticker(query: str):
+STOCK_MAP = {
+
+    "apple": "AAPL",
+    "microsoft": "MSFT",
+    "google": "GOOGL",
+    "alphabet": "GOOGL",
+    "amazon": "AMZN",
+    "tesla": "TSLA",
+    "meta": "META",
+    "nvidia": "NVDA",
+    "netflix": "NFLX",
+    "amd": "AMD",
+    "intel": "INTC",
+    "oracle": "ORCL",
+    "paypal": "PYPL",
+    "uber": "UBER",
+
+    "reliance": "RELIANCE.NS",
+    "tcs": "TCS.NS",
+    "infosys": "INFY.NS",
+    "wipro": "WIPRO.NS",
+    "hcl": "HCLTECH.NS",
+    "tech mahindra": "TECHM.NS",
+
+    "hdfc bank": "HDFCBANK.NS",
+    "icici bank": "ICICIBANK.NS",
+    "sbi": "SBIN.NS",
+    "axis bank": "AXISBANK.NS",
+    "kotak bank": "KOTAKBANK.NS",
+
+    "tata motors": "TATAMOTORS.NS",
+    "maruti": "MARUTI.NS",
+    "mahindra": "M&M.NS",
+
+    "bajaj finance": "BAJFINANCE.NS",
+    "bajaj finserv": "BAJAJFINSV.NS",
+
+    "itc": "ITC.NS",
+    "asian paints": "ASIANPAINT.NS",
+    "bharti airtel": "BHARTIARTL.NS",
+
+    "sun pharma": "SUNPHARMA.NS",
+    "cipla": "CIPLA.NS",
+    "dr reddy": "DRREDDY.NS",
+
+    "adani power": "ADANIPOWER.NS",
+    "adani green": "ADANIGREEN.NS",
+
+    "ultratech cement": "ULTRACEMCO.NS",
+    "titan": "TITAN.NS"
+}
+
+
+def get_ticker(company):
+
+    company = company.lower().strip()
+
+    if company in STOCK_MAP:
+        return STOCK_MAP[company]
+
+    if FINNHUB_API_KEY is None:
+        return None
+
     try:
-        result = search(query)
 
-        quotes = result.get("quotes", [])
+        url = (
+            "https://finnhub.io/api/v1/search"
+            f"?q={company}"
+            f"&token={FINNHUB_API_KEY}"
+        )
 
-        if not quotes:
+        response = requests.get(
+            url,
+            timeout=10
+        )
+
+        data = response.json()
+
+        if "result" not in data:
             return None
 
-        for quote in quotes:
-            symbol = quote.get("symbol", "")
+        for stock in data["result"]:
+
+            symbol = stock.get(
+                "symbol",
+                ""
+            )
 
             if symbol.endswith(".NS"):
                 return symbol
 
-        return quotes[0].get("symbol")
+        for stock in data["result"]:
+
+            symbol = stock.get(
+                "symbol",
+                ""
+            )
+
+            if symbol.endswith(".BO"):
+                return symbol
+
+        if len(data["result"]) > 0:
+            return data["result"][0]["symbol"]
 
     except:
-        return None
+        pass
+
+    return None
+
 
 def get_stock_data(ticker: str) -> pd.DataFrame:
+
     stock = yf.Ticker(ticker)
-    df = stock.history(period="5y", interval="1d", auto_adjust=False)
+
+    df = stock.history(
+        period="5y",
+        interval="1d",
+        auto_adjust=False
+    )
 
     if df.empty:
         return df
 
-    df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
+    df = df[
+        [
+            "Open",
+            "High",
+            "Low",
+            "Close",
+            "Volume"
+        ]
+    ].copy()
+
     return df
-
-
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
+
     df = df.copy()
 
     close = df["Close"]
@@ -86,86 +210,255 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     df["MA_5"] = close.rolling(5).mean()
     df["MA_10"] = close.rolling(10).mean()
     df["MA_20"] = close.rolling(20).mean()
-  
-    df["EMA_10"] = close.ewm(span=10, adjust=False).mean()
-    df["EMA_20"] = close.ewm(span=20, adjust=False).mean()
-    df["EMA_12"] = close.ewm(span=12, adjust=False).mean()
-    df["EMA_26"] = close.ewm(span=26, adjust=False).mean()
 
-    df["MACD"] = df["EMA_12"] - df["EMA_26"]
-    df["MACD_SIGNAL"] = df["MACD"].ewm(span=9, adjust=False).mean()
-    df["Trend_Strength"] = df["MA_5"] - df["MA_20"]
+    df["EMA_10"] = close.ewm(
+        span=10,
+        adjust=False
+    ).mean()
+
+    df["EMA_20"] = close.ewm(
+        span=20,
+        adjust=False
+    ).mean()
+
+    df["EMA_12"] = close.ewm(
+        span=12,
+        adjust=False
+    ).mean()
+
+    df["EMA_26"] = close.ewm(
+        span=26,
+        adjust=False
+    ).mean()
+
+    df["MACD"] = (
+        df["EMA_12"] -
+        df["EMA_26"]
+    )
+
+    df["MACD_SIGNAL"] = (
+        df["MACD"]
+        .ewm(
+            span=9,
+            adjust=False
+        )
+        .mean()
+    )
+
+    df["Trend_Strength"] = (
+        df["MA_5"] -
+        df["MA_20"]
+    )
+
     delta = close.diff()
-    gain = delta.clip(lower=0).rolling(14).mean()
-    loss = -delta.clip(upper=0).rolling(14).mean()
+
+    gain = (
+        delta.clip(lower=0)
+        .rolling(14)
+        .mean()
+    )
+
+    loss = (
+        -delta.clip(upper=0)
+        .rolling(14)
+        .mean()
+    )
+
     rs = gain / (loss + 1e-9)
-    df["RSI"] = 100 - (100 / (1 + rs))
+
+    df["RSI"] = (
+        100 -
+        (100 / (1 + rs))
+    )
 
     bb_mid = close.rolling(20).mean()
+
     bb_std = close.rolling(20).std()
-    df["BB_UPPER"] = bb_mid + 2 * bb_std
-    df["BB_LOWER"] = bb_mid - 2 * bb_std
-    df["BB_WIDTH"] = df["BB_UPPER"] - df["BB_LOWER"]
-    df["BB_POSITION"] = (close - df["BB_LOWER"]) / (df["BB_WIDTH"] + 1e-9)
 
-    df["RETURN_1D"] = close.pct_change() * 100
-    df["RETURN_5D"] = close.pct_change(5) * 100
-    df["VOLATILITY_10"] = df["RETURN_1D"].rolling(10).std()
+    df["BB_UPPER"] = (
+        bb_mid +
+        2 * bb_std
+    )
 
-    df["VOLUME_CHANGE_PCT"] = df["Volume"].pct_change() * 100
-    df["HL_SPREAD"] = df["High"] - df["Low"]
-    df["OC_SPREAD"] = df["Close"] - df["Open"]
-    df["CANDLE_BODY_PCT"] = (df["Close"] - df["Open"]) / (df["Open"] + 1e-9) * 100
+    df["BB_LOWER"] = (
+        bb_mid -
+        2 * bb_std
+    )
+
+    df["BB_WIDTH"] = (
+        df["BB_UPPER"] -
+        df["BB_LOWER"]
+    )
+
+    df["BB_POSITION"] = (
+        (close - df["BB_LOWER"])
+        /
+        (df["BB_WIDTH"] + 1e-9)
+    )
+
+    df["RETURN_1D"] = (
+        close.pct_change() * 100
+    )
+
+    df["RETURN_5D"] = (
+        close.pct_change(5) * 100
+    )
+
+    df["VOLATILITY_10"] = (
+        df["RETURN_1D"]
+        .rolling(10)
+        .std()
+    )
+
+    df["VOLUME_CHANGE_PCT"] = (
+        df["Volume"]
+        .pct_change() * 100
+    )
+
+    df["HL_SPREAD"] = (
+        df["High"] -
+        df["Low"]
+    )
+
+    df["OC_SPREAD"] = (
+        df["Close"] -
+        df["Open"]
+    )
+
+    df["CANDLE_BODY_PCT"] = (
+        (
+            df["Close"] -
+            df["Open"]
+        )
+        /
+        (df["Open"] + 1e-9)
+        * 100
+    )
 
     df["CLOSE_LAG_1"] = close.shift(1)
     df["CLOSE_LAG_2"] = close.shift(2)
     df["CLOSE_LAG_3"] = close.shift(3)
 
-    df["RETURN_LAG_1"] = df["RETURN_1D"].shift(1)
-    df["RETURN_LAG_2"] = df["RETURN_1D"].shift(2)
-    df["RETURN_LAG_3"] = df["RETURN_1D"].shift(3)
+    df["RETURN_LAG_1"] = (
+        df["RETURN_1D"]
+        .shift(1)
+    )
 
-    df["VOLUME_LAG_1"] = df["Volume"].shift(1)
-    df["MA_DIFF"] = df["MA_5"] - df["MA_10"]
-    df["EMA_DIFF"] = df["EMA_10"] - df["EMA_20"]
+    df["RETURN_LAG_2"] = (
+        df["RETURN_1D"]
+        .shift(2)
+    )
 
-    df = df.replace([np.inf, -np.inf], np.nan)
+    df["RETURN_LAG_3"] = (
+        df["RETURN_1D"]
+        .shift(3)
+    )
+
+    df["VOLUME_LAG_1"] = (
+        df["Volume"]
+        .shift(1)
+    )
+
+    df["MA_DIFF"] = (
+        df["MA_5"] -
+        df["MA_10"]
+    )
+
+    df["EMA_DIFF"] = (
+        df["EMA_10"] -
+        df["EMA_20"]
+    )
+
+    df = df.replace(
+        [np.inf, -np.inf],
+        np.nan
+    )
+
     return df
 
 
-def create_targets(df: pd.DataFrame) -> pd.DataFrame:
+def create_targets(
+    df: pd.DataFrame
+) -> pd.DataFrame:
+
     df = df.copy()
 
-    next_close = df["Close"].shift(-1)
-    df["TARGET_PRICE"] = next_close
-    df["NEXT_RETURN_PCT"] = ((next_close - df["Close"]) / df["Close"]) * 100
+    next_close = (
+        df["Close"]
+        .shift(-1)
+    )
 
-    df["TARGET_TREND"] = (df["NEXT_RETURN_PCT"] > TREND_THRESHOLD_PCT).astype(int)
+    df["TARGET_PRICE"] = (
+        next_close
+    )
+
+    df["NEXT_RETURN_PCT"] = (
+        (
+            next_close -
+            df["Close"]
+        )
+        /
+        df["Close"]
+    ) * 100
+
+    df["TARGET_TREND"] = (
+        df["NEXT_RETURN_PCT"]
+        >
+        TREND_THRESHOLD_PCT
+    ).astype(int)
 
     df = df.dropna().copy()
+
     return df
+def train_and_evaluate(df):
 
-
-def train_and_evaluate(df: pd.DataFrame):
     X = df[FEATURE_COLS].copy()
+
     y_price = df["TARGET_PRICE"].copy()
+
     y_trend = df["TARGET_TREND"].copy()
 
     split = int(len(df) * 0.8)
-    X_train, X_test = X.iloc[:split], X.iloc[split:]
-    yp_train, yp_test = y_price.iloc[:split], y_price.iloc[split:]
-    yt_train, yt_test = y_trend.iloc[:split], y_trend.iloc[split:]
+
+    X_train = X.iloc[:split]
+    X_test = X.iloc[split:]
+
+    yp_train = y_price.iloc[:split]
+    yp_test = y_price.iloc[split:]
+
+    yt_train = y_trend.iloc[:split]
+    yt_test = y_trend.iloc[split:]
 
     scaler = StandardScaler()
-    X_train_sc = scaler.fit_transform(X_train)
-    X_test_sc = scaler.transform(X_test)
+
+    X_train_sc = scaler.fit_transform(
+        X_train
+    )
+
+    X_test_sc = scaler.transform(
+        X_test
+    )
 
     price_model = LinearRegression()
-    price_model.fit(X_train_sc, yp_train)
-    price_preds = price_model.predict(X_test_sc)
 
-    mae = mean_absolute_error(yp_test, price_preds)
-    r2 = r2_score(yp_test, price_preds)
+    price_model.fit(
+        X_train_sc,
+        yp_train
+    )
+
+    price_preds = price_model.predict(
+        X_test_sc
+    )
+
+    mae = mean_absolute_error(
+        yp_test,
+        price_preds
+    )
+
+    r2 = r2_score(
+        yp_test,
+        price_preds
+    )
 
     trend_model = LogisticRegression(
         max_iter=5000,
@@ -173,108 +466,323 @@ def train_and_evaluate(df: pd.DataFrame):
         C=0.5,
         solver="lbfgs"
     )
-    trend_model.fit(X_train_sc, yt_train)
-    trend_preds = trend_model.predict(X_test_sc)
-    trend_acc = accuracy_score(yt_test, trend_preds)
 
-    return price_model, trend_model, scaler, mae, r2, trend_acc
+    trend_model.fit(
+        X_train_sc,
+        yt_train
+    )
+
+    trend_preds = trend_model.predict(
+        X_test_sc
+    )
+
+    trend_acc = accuracy_score(
+        yt_test,
+        trend_preds
+    )
+
+    return (
+        price_model,
+        trend_model,
+        scaler,
+        mae,
+        r2,
+        trend_acc
+    )
 
 
-def make_decision(trend: int, predicted_price: float, current_price: float) -> str:
-    up_buffer = current_price * 1.001
-    down_buffer = current_price * 0.999
+def make_decision(
+    trend,
+    predicted_price,
+    current_price
+):
 
-    if trend == 1 and predicted_price > up_buffer:
+    up_buffer = (
+        current_price * 1.001
+    )
+
+    down_buffer = (
+        current_price * 0.999
+    )
+
+    if (
+        trend == 1
+        and
+        predicted_price > up_buffer
+    ):
         return "BUY"
-    elif trend == 0 and predicted_price < down_buffer:
+
+    elif (
+        trend == 0
+        and
+        predicted_price < down_buffer
+    ):
         return "SELL"
+
     return "HOLD"
 
 
 def self_ping():
-    url = os.getenv("SELF_PING_URL")
+
+    url = os.getenv(
+        "SELF_PING_URL"
+    )
+
     if not url:
         return
 
     while True:
+
         try:
-            requests.get(url, timeout=10)
-            print("Self ping sent")
+
+            requests.get(
+                url,
+                timeout=10
+            )
+
+            print(
+                "Self ping sent"
+            )
+
         except Exception as e:
-            print("Ping failed:", e)
+
+            print(
+                "Ping failed:",
+                e
+            )
+
         time.sleep(300)
 
 
-if os.getenv("ENABLE_SELF_PING") == "1":
-    threading.Thread(target=self_ping, daemon=True).start()
+if os.getenv(
+    "ENABLE_SELF_PING"
+) == "1":
+
+    threading.Thread(
+        target=self_ping,
+        daemon=True
+    ).start()
 
 
 @app.get("/")
 def home():
-    return {"message": "Stock Prediction API is running 🚀"}
+
+    return {
+        "message":
+        "Stock Prediction API is running"
+    }
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
 
-
+    return {
+        "status": "ok"
+    }
 @app.get("/predict")
 def predict(query: str):
+
     try:
-        if "." in query or query.isupper():
+
+        query = query.strip()
+
+        query_lower = query.lower()
+
+        if query_lower in STOCK_MAP:
+
+            ticker = STOCK_MAP[query_lower]
+
+        elif "." in query:
+
             ticker = query.upper()
+
+        elif len(query) <= 5 and query.isupper():
+
+            ticker = query.upper()
+
         else:
+
             ticker = get_ticker(query)
 
         if ticker is None:
-            return {"error": "Company not found"}
 
-        raw_df = get_stock_data(ticker)
+            return {
+                "error":
+                "Company not found. Try another company name or enter the stock ticker directly."
+            }
+
+        raw_df = get_stock_data(
+            ticker
+        )
 
         if raw_df.empty:
-            return {"error": f"No data found for '{ticker}'"}
+
+            return {
+                "error":
+                f"No data found for '{ticker}'"
+            }
 
         if len(raw_df) < MIN_ROWS:
-            return {"error": f"Not enough historical data for '{ticker}'. Try a larger ticker or a more liquid stock."}
 
-        feature_df = add_features(raw_df)
-        model_df = create_targets(feature_df)
+            return {
+                "error":
+                f"Not enough historical data for '{ticker}'."
+            }
 
-        model_df = model_df.dropna(subset=FEATURE_COLS + ["TARGET_PRICE", "TARGET_TREND"]).copy()
+        feature_df = add_features(
+            raw_df
+        )
+
+        model_df = create_targets(
+            feature_df
+        )
+
+        model_df = model_df.dropna(
+            subset=
+            FEATURE_COLS
+            +
+            [
+                "TARGET_PRICE",
+                "TARGET_TREND"
+            ]
+        ).copy()
 
         if len(model_df) < MIN_ROWS // 2:
-            return {"error": "Not enough usable rows after feature engineering. Try a ticker with more data."}
 
-        price_model, trend_model, scaler, mae, r2, trend_acc = train_and_evaluate(model_df)
+            return {
+                "error":
+                "Not enough usable rows after feature engineering."
+            }
 
-        latest_features = feature_df[FEATURE_COLS].dropna().iloc[[-1]]
+        (
+            price_model,
+            trend_model,
+            scaler,
+            mae,
+            r2,
+            trend_acc
+        ) = train_and_evaluate(
+            model_df
+        )
+
+        latest_features = (
+            feature_df[
+                FEATURE_COLS
+            ]
+            .dropna()
+            .iloc[[-1]]
+        )
+
         if latest_features.empty:
-            return {"error": "Could not prepare the latest feature row."}
 
-        latest_sc = scaler.transform(latest_features)
+            return {
+                "error":
+                "Could not prepare latest feature row."
+            }
 
-        predicted_price = float(price_model.predict(latest_sc)[0])
-        trend = int(trend_model.predict(latest_sc)[0])
-        trend_prob_up = float(trend_model.predict_proba(latest_sc)[0][1])
+        latest_sc = scaler.transform(
+            latest_features
+        )
 
-        current_price = float(feature_df["Close"].dropna().iloc[-1])
-        decision = make_decision(trend, predicted_price, current_price)
+        predicted_price = float(
+            price_model.predict(
+                latest_sc
+            )[0]
+        )
+
+        trend = int(
+            trend_model.predict(
+                latest_sc
+            )[0]
+        )
+
+        trend_prob_up = float(
+            trend_model.predict_proba(
+                latest_sc
+            )[0][1]
+        )
+
+        current_price = float(
+            feature_df["Close"]
+            .dropna()
+            .iloc[-1]
+        )
+
+        decision = make_decision(
+            trend,
+            predicted_price,
+            current_price
+        )
 
         return {
-            "stock": ticker,
-            "current_price": round(current_price, 2),
-            "predicted_price": round(predicted_price, 2),
-            "predicted_change_pct": round(((predicted_price - current_price) / current_price) * 100, 2),
-            "trend": trend,
-            "trend_probability_up": round(trend_prob_up, 4),
-            "decision": decision,
+
+            "stock":
+            ticker,
+
+            "current_price":
+            round(
+                current_price,
+                2
+            ),
+
+            "predicted_price":
+            round(
+                predicted_price,
+                2
+            ),
+
+            "predicted_change_pct":
+            round(
+                (
+                    (
+                        predicted_price
+                        -
+                        current_price
+                    )
+                    /
+                    current_price
+                )
+                * 100,
+                2
+            ),
+
+            "trend":
+            trend,
+
+            "trend_probability_up":
+            round(
+                trend_prob_up,
+                4
+            ),
+
+            "decision":
+            decision,
+
             "model_accuracy": {
-                "trend_accuracy_pct": round(trend_acc * 100, 2),
-                "price_mae": round(mae, 2),
-                "price_r2_score": round(r2, 4),
-            },
+
+                "trend_accuracy_pct":
+                round(
+                    trend_acc * 100,
+                    2
+                ),
+
+                "price_mae":
+                round(
+                    mae,
+                    2
+                ),
+
+                "price_r2_score":
+                round(
+                    r2,
+                    4
+                )
+            }
         }
 
     except Exception as e:
-        return {"error": str(e)}
+
+        return {
+            "error":
+            str(e)
+        }

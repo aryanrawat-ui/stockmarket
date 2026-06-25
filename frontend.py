@@ -92,34 +92,19 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-stock_map = {
-    "Apple":"AAPL",
-    "Tesla":"TSLA",
-    "Microsoft":"MSFT",
-    "Google":"GOOGL",
-    "Amazon":"AMZN",
-    "Reliance":"RELIANCE.NS",
-    "TCS":"TCS.NS",
-    "Infosys":"INFY.NS",
-    "HDFC Bank":"HDFCBANK.NS",
-    "ICICI Bank":"ICICIBANK.NS",
-    "Tata Motors":"TATAMOTORS.NS",
-    "Bajaj Finance":"BAJFINANCE.NS"
-}
-
 left, center, right = st.columns([1,2,1])
 
 with center:
 
     company = st.text_input(
-        "Search Company",
-        placeholder="Apple, Tesla, Reliance, Tata Motors..."
+        "Search Company or Ticker",
+       placeholder="Apple, Tesla, Reliance, TCS, AAPL, TSLA..."
     )
 
     if company:
-        ticker = stock_map.get(company, company)
+        ticker = company.strip()
     else:
-        ticker = "RELIANCE.NS"
+        ticker = "Reliance"
 
     chart_period = st.radio(
         "Time Period",
