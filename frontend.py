@@ -1,6 +1,8 @@
+```python
 import streamlit as st
 import requests
 import yfinance as yf
+import plotly.graph_objects as go
 
 API_URL = "https://stockmarketprediction-r270.onrender.com/predict"
 
@@ -15,7 +17,7 @@ st.markdown("""
 
 .main-title {
     text-align: center;
-    font-size: 42px;
+    font-size: 48px;
     font-weight: 700;
     margin-bottom: 0;
 }
@@ -23,41 +25,45 @@ st.markdown("""
 .sub-title {
     text-align: center;
     color: gray;
-    margin-bottom: 30px;
+    margin-bottom: 35px;
+}
+
+div[data-testid="metric-container"] {
+    background-color: #111827;
+    border: 1px solid #2d3748;
+    padding: 18px;
+    border-radius: 14px;
 }
 
 .signal-buy {
-    background: #1e5631;
+    background: linear-gradient(90deg,#00b09b,#96c93d);
     color: white;
-    border: 2px solid #28a745;
-    padding: 20px;
-    border-radius: 12px;
+    padding: 25px;
+    border-radius: 15px;
     text-align: center;
-    font-size: 28px;
+    font-size: 32px;
     font-weight: bold;
     margin-top: 20px;
 }
 
 .signal-sell {
-    background: #7a1f1f;
+    background: linear-gradient(90deg,#cb2d3e,#ef473a);
     color: white;
-    border: 2px solid #dc3545;
-    padding: 20px;
-    border-radius: 12px;
+    padding: 25px;
+    border-radius: 15px;
     text-align: center;
-    font-size: 28px;
+    font-size: 32px;
     font-weight: bold;
     margin-top: 20px;
 }
 
 .signal-hold {
-    background: #7a6618;
+    background: linear-gradient(90deg,#c79081,#dfa579);
     color: white;
-    border: 2px solid #ffc107;
-    padding: 20px;
-    border-radius: 12px;
+    padding: 25px;
+    border-radius: 15px;
     text-align: center;
-    font-size: 28px;
+    font-size: 32px;
     font-weight: bold;
     margin-top: 20px;
 }
@@ -67,12 +73,12 @@ st.markdown("""
 
 # ---------- HEADER ----------
 st.markdown(
-    "<h1 class='main-title'>AI Stock Prediction Dashboard</h1>",
+    "<h1 class='main-title'>AI Stock Predictor</h1>",
     unsafe_allow_html=True
 )
 
 st.markdown(
-    "<p class='sub-title'>Built by Aryan Rawat</p>",
+    "<p class='sub-title'>Machine Learning Based Market Forecasting</p>",
     unsafe_allow_html=True
 )
 
@@ -90,55 +96,109 @@ popular_stocks = [
     "HDFCBANK.NS"
 ]
 
-col1, col2 = st.columns(2)
+left, center, right = st.columns([1,2,1])
 
-with col1:
+with center:
+
     ticker = st.selectbox(
-        "Popular Stocks",
+        "Select Stock",
         popular_stocks
     )
 
-with col2:
     custom_ticker = st.text_input(
         "Custom Ticker",
         placeholder="AMZN, TATAMOTORS.NS"
     )
 
-if custom_ticker.strip():
-    ticker = custom_ticker.strip().upper()
+    if custom_ticker.strip():
+        ticker = custom_ticker.strip().upper()
 
-st.write("")
+    predict_clicked = st.button(
+        "Analyze Stock",
+        use_container_width=True,
+        type="primary"
+    )
 
-predict_clicked = st.button(
-    "Predict",
-    use_container_width=True,
-    type="primary"
-)
-
-# ---------- PREDICTION ----------
+# ---------- PREDICT ----------
 if predict_clicked:
 
     try:
-        hist = yf.Ticker(ticker).history(period="1mo")
+
+        stock = yf.Ticker(ticker)
+
+        try:
+            info = stock.info
+
+            company_name = info.get(
+                "longName",
+                ticker
+            )
+
+            sector = info.get(
+                "sector",
+                ""
+            )
+
+            st.subheader(company_name)
+
+            if sector:
+                st.caption(sector)
+
+        except:
+            pass
+
+        hist = stock.history(period="1mo")
 
         st.subheader("Price Chart")
 
         if hist.empty:
-            st.warning("No chart data found.")
+
+            st.warning("No market data found.")
 
         else:
-            st.line_chart(
-                hist["Close"],
+
+            fig = go.Figure()
+
+            fig.add_trace(
+                go.Scatter(
+                    x=hist.index,
+                    y=hist["Close"],
+                    mode="lines",
+                    line=dict(width=3)
+                )
+            )
+
+            fig.update_layout(
+                template="plotly_dark",
+                height=450,
+                margin=dict(
+                    l=20,
+                    r=20,
+                    t=20,
+                    b=20
+                )
+            )
+
+            st.plotly_chart(
+                fig,
                 use_container_width=True
             )
 
             if len(hist) >= 2:
 
-                last_close = float(hist["Close"].iloc[-1])
-                prev_close = float(hist["Close"].iloc[-2])
+                last_close = float(
+                    hist["Close"].iloc[-1]
+                )
+
+                prev_close = float(
+                    hist["Close"].iloc[-2]
+                )
 
                 change = last_close - prev_close
-                change_pct = (change / prev_close) * 100
+
+                change_pct = (
+                    change / prev_close
+                ) * 100
 
                 m1, m2, m3 = st.columns(3)
 
@@ -171,28 +231,33 @@ if predict_clicked:
             data = response.json()
 
             if "error" in data:
+
                 st.error(data["error"])
 
             else:
 
                 st.subheader("Prediction")
 
-                p1, p2, p3 = st.columns(3)
+                c1, c2, c3 = st.columns(3)
 
-                p1.metric(
+                c1.metric(
                     "Current Price",
                     f"₹{data['current_price']}"
                 )
 
-                p2.metric(
+                c2.metric(
                     "Predicted Price",
                     f"₹{data['predicted_price']}",
                     f"{data['predicted_change_pct']}%"
                 )
 
-                trend = "UP" if data["trend"] == 1 else "DOWN"
+                trend = (
+                    "UP"
+                    if data["trend"] == 1
+                    else "DOWN"
+                )
 
-                p3.metric(
+                c3.metric(
                     "Trend",
                     trend
                 )
@@ -203,29 +268,56 @@ if predict_clicked:
                         data["trend_probability_up"]
                     )
 
-                    probability = max(0, min(1, probability))
+                    probability = max(
+                        0,
+                        min(1, probability)
+                    )
 
-                    st.progress(probability)
+                    gauge = go.Figure(
+                        go.Indicator(
+                            mode="gauge+number",
+                            value=probability * 100,
+                            title={
+                                "text":
+                                "UP Probability"
+                            },
+                            gauge={
+                                "axis": {
+                                    "range":
+                                    [0, 100]
+                                }
+                            }
+                        )
+                    )
 
-                    st.caption(
-                        f"Probability of UP: {probability:.2%}"
+                    gauge.update_layout(
+                        height=300,
+                        template="plotly_dark"
+                    )
+
+                    st.plotly_chart(
+                        gauge,
+                        use_container_width=True
                     )
 
                 decision = data["decision"]
 
                 if decision == "BUY":
+
                     st.markdown(
                         "<div class='signal-buy'>BUY SIGNAL</div>",
                         unsafe_allow_html=True
                     )
 
                 elif decision == "SELL":
+
                     st.markdown(
                         "<div class='signal-sell'>SELL SIGNAL</div>",
                         unsafe_allow_html=True
                     )
 
                 else:
+
                     st.markdown(
                         "<div class='signal-hold'>HOLD SIGNAL</div>",
                         unsafe_allow_html=True
@@ -233,58 +325,81 @@ if predict_clicked:
 
                 st.divider()
 
-                st.subheader("Model Performance")
+                st.subheader(
+                    "Model Performance"
+                )
 
-                accuracy = data.get("model_accuracy")
+                acc = data.get(
+                    "model_accuracy"
+                )
 
-                if accuracy:
+                if acc:
 
-                    c1, c2, c3 = st.columns(3)
+                    p1, p2, p3 = st.columns(3)
 
-                    c1.metric(
+                    p1.metric(
                         "Trend Accuracy",
-                        f"{accuracy['trend_accuracy_pct']}%"
+                        f"{acc['trend_accuracy_pct']}%"
                     )
 
-                    c2.metric(
+                    p2.metric(
                         "Price MAE",
-                        f"₹{accuracy['price_mae']}"
+                        f"₹{acc['price_mae']}"
                     )
 
-                    c3.metric(
+                    p3.metric(
                         "R² Score",
-                        accuracy["price_r2_score"]
+                        acc["price_r2_score"]
                     )
 
-                    r2 = float(accuracy["price_r2_score"])
+                    r2 = float(
+                        acc["price_r2_score"]
+                    )
 
-                    if r2 >= 0.9:
-                        st.success("Excellent model fit")
+                    if r2 >= 0.90:
 
-                    elif r2 >= 0.7:
-                        st.info("Good model fit")
+                        st.success(
+                            "Excellent model fit"
+                        )
+
+                    elif r2 >= 0.70:
+
+                        st.info(
+                            "Good model fit"
+                        )
 
                     else:
-                        st.warning("Weak model fit")
+
+                        st.warning(
+                            "Weak model fit"
+                        )
 
                 else:
+
                     st.warning(
-                        "Model accuracy data unavailable."
+                        "Model accuracy unavailable."
                     )
 
     except requests.exceptions.Timeout:
-        st.error("Request timed out.")
+
+        st.error(
+            "Request timed out."
+        )
 
     except Exception as e:
-        st.error(f"Error: {e}")
+
+        st.error(
+            f"Error: {e}"
+        )
 
 st.divider()
 
 st.markdown(
     """
-    <p style='text-align:center; color:gray;'>
+    <p style='text-align:center;color:gray;'>
     © 2026 Aryan Rawat | AI Stock Predictor
     </p>
     """,
     unsafe_allow_html=True
 )
+```
