@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import requests
 import yfinance as yf
