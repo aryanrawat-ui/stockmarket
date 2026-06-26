@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import pandas as pd
 from plotly.subplots import make_subplots
 
-API_URL = "http://127.0.0.1:8000/predict"
+API_URL = "https://stockmarketprediction-r270.onrender.com/predict"
 stocks_df = pd.read_csv("data/stocks.csv")
 
 st.set_page_config(
