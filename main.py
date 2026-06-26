@@ -24,10 +24,6 @@ from sklearn.preprocessing import (
     StandardScaler
 )
 
-FINNHUB_API_KEY = os.getenv(
-    "FINNHUB_API_KEY"
-)
-
 app = FastAPI(
     title="AI Stock Predictor API"
 )
@@ -66,116 +62,6 @@ FEATURE_COLS = [
     "EMA_DIFF",
     "Trend_Strength",
 ]
-
-STOCK_MAP = {
-
-    "apple": "AAPL",
-    "microsoft": "MSFT",
-    "google": "GOOGL",
-    "alphabet": "GOOGL",
-    "amazon": "AMZN",
-    "tesla": "TSLA",
-    "meta": "META",
-    "nvidia": "NVDA",
-    "netflix": "NFLX",
-    "amd": "AMD",
-    "intel": "INTC",
-    "oracle": "ORCL",
-    "paypal": "PYPL",
-    "uber": "UBER",
-
-    "reliance": "RELIANCE.NS",
-    "tcs": "TCS.NS",
-    "infosys": "INFY.NS",
-    "wipro": "WIPRO.NS",
-    "hcl": "HCLTECH.NS",
-    "tech mahindra": "TECHM.NS",
-
-    "hdfc bank": "HDFCBANK.NS",
-    "icici bank": "ICICIBANK.NS",
-    "sbi": "SBIN.NS",
-    "axis bank": "AXISBANK.NS",
-    "kotak bank": "KOTAKBANK.NS",
-
-    "tata motors": "TATAMOTORS.NS",
-    "maruti": "MARUTI.NS",
-    "mahindra": "M&M.NS",
-
-    "bajaj finance": "BAJFINANCE.NS",
-    "bajaj finserv": "BAJAJFINSV.NS",
-
-    "itc": "ITC.NS",
-    "asian paints": "ASIANPAINT.NS",
-    "bharti airtel": "BHARTIARTL.NS",
-
-    "sun pharma": "SUNPHARMA.NS",
-    "cipla": "CIPLA.NS",
-    "dr reddy": "DRREDDY.NS",
-
-    "adani power": "ADANIPOWER.NS",
-    "adani green": "ADANIGREEN.NS",
-
-    "ultratech cement": "ULTRACEMCO.NS",
-    "titan": "TITAN.NS"
-}
-
-
-def get_ticker(company):
-
-    company = company.lower().strip()
-
-    if company in STOCK_MAP:
-        return STOCK_MAP[company]
-
-    if FINNHUB_API_KEY is None:
-        return None
-
-    try:
-
-        url = (
-            "https://finnhub.io/api/v1/search"
-            f"?q={company}"
-            f"&token={FINNHUB_API_KEY}"
-        )
-
-        response = requests.get(
-            url,
-            timeout=10
-        )
-
-        data = response.json()
-
-        if "result" not in data:
-            return None
-
-        for stock in data["result"]:
-
-            symbol = stock.get(
-                "symbol",
-                ""
-            )
-
-            if symbol.endswith(".NS"):
-                return symbol
-
-        for stock in data["result"]:
-
-            symbol = stock.get(
-                "symbol",
-                ""
-            )
-
-            if symbol.endswith(".BO"):
-                return symbol
-
-        if len(data["result"]) > 0:
-            return data["result"][0]["symbol"]
-
-    except:
-        pass
-
-    return None
-
 
 def get_stock_data(ticker: str) -> pd.DataFrame:
 
@@ -580,63 +466,34 @@ def health():
         "status": "ok"
     }
 @app.get("/predict")
-def predict(query: str):
+def predict(ticker: str):
 
     try:
-
-        query = query.strip()
-
-        query_lower = query.lower()
-
-        if query_lower in STOCK_MAP:
-
-            ticker = STOCK_MAP[query_lower]
-
-        elif "." in query:
-
-            ticker = query.upper()
-
-        elif len(query) <= 5 and query.isupper():
-
-            ticker = query.upper()
-
-        else:
-
-            ticker = get_ticker(query)
-
+        ticker = ticker.upper()
         if ticker is None:
-
             return {
                 "error":
                 "Company not found. Try another company name or enter the stock ticker directly."
             }
-
         raw_df = get_stock_data(
             ticker
         )
-
         if raw_df.empty:
-
             return {
                 "error":
                 f"No data found for '{ticker}'"
             }
-
         if len(raw_df) < MIN_ROWS:
-
             return {
                 "error":
                 f"Not enough historical data for '{ticker}'."
             }
-
         feature_df = add_features(
             raw_df
         )
-
         model_df = create_targets(
             feature_df
         )
-
         model_df = model_df.dropna(
             subset=
             FEATURE_COLS

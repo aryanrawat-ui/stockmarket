@@ -2,9 +2,11 @@ import streamlit as st
 import requests
 import yfinance as yf
 import plotly.graph_objects as go
+import pandas as pd
 from plotly.subplots import make_subplots
 
-API_URL = "https://stockmarketprediction-r270.onrender.com/predict"
+API_URL = "http://127.0.0.1:8000/predict"
+stocks_df = pd.read_csv("data/stocks.csv")
 
 st.set_page_config(
     page_title="AI Market Intelligence",
@@ -96,15 +98,58 @@ left, center, right = st.columns([1,2,1])
 
 with center:
 
-    company = st.text_input(
-        "Search Company or Ticker",
-       placeholder="Apple, Tesla, Reliance, TCS, AAPL, TSLA..."
-    )
+    col1, col2 = st.columns([5,1], vertical_alignment="bottom")
 
-    if company:
-        ticker = company.strip()
-    else:
-        ticker = "Reliance"
+    with col1:
+        company = st.text_input(
+            "Search Company or Ticker",
+            placeholder="Apple, Tesla, Reliance...",
+            icon=":material/search:"
+        )
+    
+    with col2:
+        search_clicked = st.button(
+            "🔍",
+            use_container_width=True
+        )
+    selected_ticker = None
+
+    if search_clicked and company.strip():
+        st.session_state["search"] = company.strip()
+    search_text = st.session_state.get("search", "")
+    if search_text:
+
+        results = stocks_df[
+            stocks_df["Search"].str.contains(
+                search_text,
+                case=False,
+                na=False
+            )
+        ].head(10)
+
+        if not results.empty:
+
+            labels = (
+                results["Company"]
+                + " ("
+                + results["Ticker"]
+                + ")"
+            ).tolist()
+    
+            selected = st.selectbox(
+            "Select Company",
+                labels
+            )
+
+            selected_ticker = (
+                selected
+                .split("(")[-1]
+                .replace(")", "")
+            )
+    
+        else:
+    
+            st.warning("No matching company found.")
 
     chart_period = st.radio(
         "Time Period",
@@ -125,75 +170,56 @@ period_map = {
     "5Y":"5y"
 }
 if analyze:
-
+    if selected_ticker is None:
+        st.stop()
     try:
-
         with st.spinner("Analyzing market..."):
-
             response = requests.get(
                 API_URL,
-                params={"query": ticker},
+                params={"ticker": selected_ticker},
                 timeout=60
             )
-
             data = response.json()
-
             if "error" in data:
-
                 st.error(data["error"])
-
             else:
-
                 real_ticker = data["stock"]
-
                 stock = yf.Ticker(real_ticker)
-
                 try:
-
                     info = stock.info
-
                     company_name = info.get(
                         "longName",
                         real_ticker
                     )
-
                     sector = info.get(
                         "sector",
                         "Unknown"
                     )
-
                     market_cap = info.get(
                         "marketCap",
                         "N/A"
                     )
-
                     pe_ratio = info.get(
                         "trailingPE",
                         "N/A"
                     )
-
                     high52 = info.get(
                         "fiftyTwoWeekHigh",
                         "N/A"
                     )
-
                     low52 = info.get(
                         "fiftyTwoWeekLow",
                         "N/A"
                     )
-
                 except:
-
                     company_name = real_ticker
                     sector = "Unknown"
                     market_cap = "N/A"
                     pe_ratio = "N/A"
                     high52 = "N/A"
                     low52 = "N/A"
-
                 st.subheader(company_name)
                 st.caption(sector)
-
                 tab1, tab2, tab3, tab4 = st.tabs(
                     [
                         "Summary",
@@ -202,49 +228,38 @@ if analyze:
                         "Prediction"
                     ]
                 )
-
                 with tab1:
-
                     s1, s2, s3, s4 = st.columns(4)
-
                     s1.metric(
                         "Market Cap",
                         market_cap
                     )
-
                     s2.metric(
                         "PE Ratio",
                         pe_ratio
                     )
-
                     s3.metric(
                         "52W High",
                         high52
                     )
-
                     s4.metric(
                         "52W Low",
                         low52
                     )
-
                 hist = stock.history(
                     period=period_map[chart_period]
                 )
-
                 hist["MA20"] = (
                     hist["Close"]
                     .rolling(20)
                     .mean()
                 )
-
                 hist["MA50"] = (
                     hist["Close"]
                     .rolling(50)
                     .mean()
                 )
-
                 with tab2:
-
                     fig = make_subplots(
                         rows=2,
                         cols=1,
